@@ -2,7 +2,7 @@
 
 ## Daily news digest
 
-Emails a news digest every morning at 08:00 Copenhagen time. A GitHub Actions
+Emails a digest on agentic software development every morning at 08:00 Copenhagen time. A GitHub Actions
 workflow runs `news_digest.py`, which has Claude search the web and write the
 digest, then sends it through Resend.
 
