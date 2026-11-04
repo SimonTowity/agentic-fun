@@ -1,0 +1,48 @@
+name: Daily news digest
+
+on:
+  schedule:
+    # GitHub cron runs in UTC and Copenhagen shifts with daylight saving, so
+    # there is one trigger per offset. Both fire at 07:40 local in their season,
+    # leaving time to write the digest before it is sent at 08:00.
+    - cron: "40 5 * * *" # Summer time (UTC+2)
+    - cron: "40 6 * * *" # Winter time (UTC+1)
+  workflow_dispatch: # Lets you run it by hand; a manual run sends straight away.
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - name: Keep only the trigger matching Copenhagen's current offset
+        id: gate
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          case "$(TZ=Europe/Copenhagen date +%z)|$SCHEDULE" in
+            *"|"|"+0200|40 5 * * *"|"+0100|40 6 * * *") echo "run=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "run=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: actions/checkout@v5
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-python@v6
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Write and send the digest
+        if: steps.gate.outputs.run == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          SEND_AT: ${{ github.event_name == 'schedule' && '08:00' || '' }}
+        run: python news_digest.py
